@@ -1,0 +1,77 @@
+import { NextResponse } from "next/server";
+import connectDB from "@/lib/db";
+import Payment from "@/models/Payment";
+import User from "@/models/User";
+import { getUserFromRequest } from "@/lib/auth";
+
+export async function POST(req: Request) {
+  try {
+    await connectDB();
+
+    const user = await getUserFromRequest(req as any);
+    if (!user) {
+      return NextResponse.json(
+        { error: "تکایە یەکەم جار بچۆ ژوورەوە" },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    const { amount, planType, duration, courseId, senderName, senderPhone } =
+      body;
+
+    // Validate
+    if (!amount || !senderName || !senderPhone) {
+      return NextResponse.json(
+        { error: "هەموو خانە پێویستەکان پڕ بکەرەوە" },
+        { status: 400 }
+      );
+    }
+
+    // Create payment record
+    const payment = await Payment.create({
+      userId: user.userId,
+      courseId: courseId || undefined,
+      planType: planType || undefined,
+      duration: duration || undefined,
+      amount,
+      currency: "IQD",
+      paymentMethod: "FIB",
+      senderName,
+      senderPhone,
+      status: "pending",
+    });
+
+    // Get admin FIB number from env
+    const fibNumber = process.env.FIB_NUMBER || "+964 750 604 5491";
+    const fibName = process.env.FIB_NAME || "KurdiLearn Platform";
+
+    return NextResponse.json(
+      {
+        message: "تکایە پارەکە بنێرە بۆ ئەم ژمارەیە",
+        payment: {
+          id: payment._id,
+          amount: payment.amount,
+          fibNumber: fibNumber,
+          fibName: fibName,
+          instructions: `
+١. بڕۆ بۆ ئەپلیکەیشنی FIB
+٢. پارەی ${amount} دینار بنێرە بۆ ژمارەی ${fibNumber}
+٣. ناوی وەرگر: ${fibName}
+٤. دوای ناردنی پارەکە، ئەم زانیاریانە بنێرە:
+   - ژمارەی مامەڵەکە (Transaction ID)
+   - وێنەی سکرین شەتی پارەدانەکە
+٥. چاوەڕێی پشتڕاستکردنەوە بکە (١-٢٤ کاتژمێر)
+          `,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error("FIB Payment Error:", error);
+    return NextResponse.json(
+      { error: "هەڵەیەک ڕوویدا لە سێرڤەر" },
+      { status: 500 }
+    );
+  }
+}
