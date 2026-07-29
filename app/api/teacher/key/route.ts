@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Payment from "@/models/Payment";
+import User from "@/models/User"; // Add missing User import
 import { getUserFromRequest } from "@/lib/auth";
+
+// Define strict type for payment methods
+type PaymentMethodType = "FIB" | "FastPay";
 
 // POST - Buy activation key
 export async function POST(req: Request) {
@@ -38,10 +42,14 @@ export async function POST(req: Request) {
       notes: "کڕینی کلیلی چالاککردنەوەی مامۆستا",
     });
 
-    const accountNumbers = {
+    const accountNumbers: Record<PaymentMethodType, string> = {
       FIB: "+964 750 604 5491",
       FastPay: "+964 750 604 5491",
     };
+
+    // Safely get account number with fallback
+    const selectedMethod = paymentMethod as PaymentMethodType;
+    const accountNumber = accountNumbers[selectedMethod] || "+964 750 604 5491";
 
     return NextResponse.json(
       {
@@ -49,10 +57,10 @@ export async function POST(req: Request) {
         payment: {
           id: payment._id,
           amount: payment.amount,
-          accountNumber: accountNumbers[paymentMethod],
+          accountNumber: accountNumber,
           instructions: `
 بۆ چالاککردنی هەژماری مامۆستا:
-١. پارەی ${amount} دینار بنێرە بۆ ${paymentMethod}: ${accountNumbers[paymentMethod]}
+١. پارەی ${amount} دینار بنێرە بۆ ${paymentMethod}: ${accountNumber}
 ٢. دوای ناردنی پارەکە، کلیلی چالاککردنەوە دەنێردرێت بۆ ئیمەیڵەکەت
 ٣. کلیلی چالاککردنەوە: TEACHER-2024-ACTIVATE
           `,
